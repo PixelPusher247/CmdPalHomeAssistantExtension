@@ -1,0 +1,158 @@
+name: Build and Release MSIX
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g. 1.0.0). Leave blank to read from .csproj'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+jobs:
+  # ── Build a signed MSIX for each architecture ─────────────────────────────
+  build-msix:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        arch: [x64, arm64]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Resolve version
+        id: vars
+        shell: pwsh
+        run: |
+          $v = '${{ github.event.inputs.version }}'
+          if (-not $v) {
+            [xml]$proj = Get-Content HomeAssistantExtension/HomeAssistantExtension.csproj
+            $v = ($proj.Project.PropertyGroup | ForEach-Object { $_.Version } | Where-Object { $_ } | Select-Object -First 1)
+            if (-not $v) { $v = '0.0.1' }
+          }
+          "version=$v" | Out-File $env:GITHUB_OUTPUT -Append
+
+      - name: Decode signing certificate
+        shell: pwsh
+        run: |
+          $pfxBytes = [Convert]::FromBase64String('${{ secrets.SIGNING_CERT_PFX }}')
+          [System.IO.File]::WriteAllBytes('HomeAssistantExtension/signing.pfx', $pfxBytes)
+
+      - name: Build MSIX (${{ matrix.arch }})
+        shell: pwsh
+        run: |
+          cd HomeAssistantExtension
+          .\build-msix.ps1 `
+            -Arch      ${{ matrix.arch }} `
+            -Version   ${{ steps.vars.outputs.version }} `
+            -CertPath  signing.pfx `
+            -CertPassword '${{ secrets.SIGNING_CERT_PASSWORD }}'
+
+      - name: Upload MSIX artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: msix-${{ matrix.arch }}
+          path: HomeAssistantExtension/output/HomeAssistantExtension-${{ steps.vars.outputs.version }}-${{ matrix.arch }}.msix
+
+  # ── Bundle both arches, attach cert, publish release ──────────────────────
+  release:
+    needs: build-msix
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve version
+        id: vars
+        shell: pwsh
+        run: |
+          $v = '${{ github.event.inputs.version }}'
+          if (-not $v) {
+            [xml]$proj = Get-Content HomeAssistantExtension/HomeAssistantExtension.csproj
+            $v = ($proj.Project.PropertyGroup | ForEach-Object { $_.Version } | Where-Object { $_ } | Select-Object -First 1)
+            if (-not $v) { $v = '0.0.1' }
+          }
+          "version=$v" | Out-File $env:GITHUB_OUTPUT -Append
+
+      - name: Download MSIX artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: msix-*
+          path: dist/
+          merge-multiple: true
+
+      - name: Decode signing certificate
+        shell: pwsh
+        run: |
+          $pfxBytes = [Convert]::FromBase64String('${{ secrets.SIGNING_CERT_PFX }}')
+          [System.IO.File]::WriteAllBytes('signing.pfx', $pfxBytes)
+
+      - name: Export public certificate (.cer) for distribution
+        shell: pwsh
+        run: |
+          $cert = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new(
+              (Resolve-Path 'signing.pfx').Path,
+              '${{ secrets.SIGNING_CERT_PASSWORD }}')
+          $cerBytes = $cert.Export(
+              [System.Security.Cryptography.X509Certificates.X509ContentType]::Cert)
+          [System.IO.File]::WriteAllBytes('HomeAssistantExtension.cer', $cerBytes)
+          Write-Host "Exported: HomeAssistantExtension.cer ($($cerBytes.Length) bytes)"
+
+      - name: Bundle x64 + arm64 into .msixbundle and sign
+        id: bundle
+        shell: pwsh
+        run: |
+          $makeappx = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\makeappx.exe" |
+                      Sort-Object { [version]($_.Directory.Parent.Name) } -Descending |
+                      Select-Object -First 1 -ExpandProperty FullName
+          $signtool  = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\signtool.exe" |
+                       Sort-Object { [version]($_.Directory.Parent.Name) } -Descending |
+                       Select-Object -First 1 -ExpandProperty FullName
+
+          $version    = '${{ steps.vars.outputs.version }}'
+          $bundleName = "HomeAssistantExtension-$version.msixbundle"
+
+          & $makeappx bundle /v /o /d dist/ /p $bundleName
+          if ($LASTEXITCODE -ne 0) { throw "makeappx bundle failed" }
+
+          & $signtool sign /fd SHA256 /f signing.pfx /p '${{ secrets.SIGNING_CERT_PASSWORD }}' $bundleName
+          if ($LASTEXITCODE -ne 0) { throw "signtool sign failed" }
+
+          "bundle_name=$bundleName" | Out-File $env:GITHUB_OUTPUT -Append
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.vars.outputs.version }}
+          name: Home Assistant Extension v${{ steps.vars.outputs.version }}
+          body: |
+            ## Installation
+
+            ### First time on a new PC (requires Administrator — do this once)
+
+            1. Download **`HomeAssistantExtension.cer`** from the assets below.
+            2. Open **PowerShell as Administrator** and run:
+            ```powershell
+            Import-Certificate -FilePath .\HomeAssistantExtension.cer -CertStoreLocation Cert:\LocalMachine\TrustedPeople
+            Import-Certificate -FilePath .\HomeAssistantExtension.cer -CertStoreLocation Cert:\LocalMachine\Root
+            ```
+
+            ### Install / update the extension
+
+            3. Download **`HomeAssistantExtension-${{ steps.vars.outputs.version }}.msixbundle`** from the assets below.
+            4. Run in PowerShell (no admin needed):
+            ```powershell
+            Add-AppxPackage .\HomeAssistantExtension-${{ steps.vars.outputs.version }}.msixbundle
+            ```
+            5. **Restart PowerToys** — the Home Assistant extension will appear in Command Palette.
+
+            > **Updating?** Skip steps 1–2 (cert is already trusted). Just download the new `.msixbundle` and run step 4.
+          files: |
+            HomeAssistantExtension.cer
+            ${{ steps.bundle.outputs.bundle_name }}

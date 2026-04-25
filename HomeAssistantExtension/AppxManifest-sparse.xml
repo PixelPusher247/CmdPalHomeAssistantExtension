@@ -40,7 +40,7 @@
     <Application Id="App" Executable="HomeAssistantExtension.exe" EntryPoint="Windows.FullTrustApplication">
       <uap:VisualElements
         DisplayName="Home Assistant"
-        Description="Home Assistant Extension for PowerToys Command Palette"
+        Description="Control Home Assistant devices from PowerToys Command Palette"
         BackgroundColor="transparent"
         Square150x150Logo="Assets\Square150x150Logo.scale-200.png"
         Square44x44Logo="Assets\Square44x44Logo.scale-200.png" />
@@ -55,6 +55,7 @@
         <uap3:Extension Category="windows.appExtension">
           <uap3:AppExtension Name="com.microsoft.commandpalette"
             Id="HomeAssistant"
+            PublicFolder="Public"
             DisplayName="Home Assistant"
             Description="Control Home Assistant devices from PowerToys Command Palette">
             <uap3:Properties>

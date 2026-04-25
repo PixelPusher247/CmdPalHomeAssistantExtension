@@ -72,5 +72,7 @@ coverage/
 secrets.json
 appsettings.*.json
 !appsettings.json
-# Code-signing certificate — upload to Azure DevOps Secure Files instead
+# Code-signing certificate and generated export files — never commit these
 *.pfx
+signing-cert-base64.txt
+cert-thumbprint.txt
