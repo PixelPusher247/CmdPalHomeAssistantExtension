@@ -1,0 +1,49 @@
+name: Update winget Manifest
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g. 1.0.0)'
+        required: true
+      tag:
+        description: 'Release tag (e.g. v1.0.0)'
+        required: true
+
+jobs:
+  update-winget:
+    runs-on: windows-latest
+
+    steps:
+      - name: Resolve version and installer URLs
+        id: vars
+        shell: pwsh
+        run: |
+          if ('${{ github.event_name }}' -eq 'release') {
+            $tag     = '${{ github.event.release.tag_name }}'
+            $version = $tag.TrimStart('v')
+          } else {
+            $tag     = '${{ github.event.inputs.tag }}'
+            $version = '${{ github.event.inputs.version }}'
+          }
+          $repo  = '${{ github.repository }}'
+          $base  = "https://github.com/$repo/releases/download/$tag"
+          "version=$version"                                           | Out-File $env:GITHUB_OUTPUT -Append
+          "x64_url=$base/HomeAssistantExtension-$version-x64.exe"     | Out-File $env:GITHUB_OUTPUT -Append
+          "arm64_url=$base/HomeAssistantExtension-$version-arm64.exe" | Out-File $env:GITHUB_OUTPUT -Append
+
+      - name: Install wingetcreate
+        run: winget install --id Microsoft.WingetCreate --exact --accept-source-agreements --accept-package-agreements --silent
+
+      - name: Submit winget update
+        shell: pwsh
+        env:
+          WINGET_TOKEN: ${{ secrets.WINGET_GITHUB_PAT }}
+        run: |
+          wingetcreate update PixelPusher247.HomeAssistantExtension `
+            --version '${{ steps.vars.outputs.version }}' `
+            --urls '${{ steps.vars.outputs.x64_url }}|x64|user' '${{ steps.vars.outputs.arm64_url }}|arm64|user' `
+            --submit `
+            --token $env:WINGET_TOKEN

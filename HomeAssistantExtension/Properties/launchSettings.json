@@ -1,0 +1,11 @@
+{
+  "profiles": {
+    "HomeAssistantExtension (Package)": {
+      "commandName": "MsixPackage",
+      "doNotLaunchApp": true
+    },
+    "HomeAssistantExtension (Unpackaged)": {
+      "commandName": "Project"
+    }
+  }
+}

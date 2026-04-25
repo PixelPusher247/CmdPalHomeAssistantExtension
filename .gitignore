@@ -1,0 +1,76 @@
+# ── Build output ──────────────────────────────────────────────────────────────
+bin/
+obj/
+out/
+
+# ── NuGet ─────────────────────────────────────────────────────────────────────
+.nuget/
+*.nupkg
+*.snupkg
+project.lock.json
+project.assets.json
+packages/
+# Restore marker files (safe to regenerate)
+*.nuget.props
+*.nuget.targets
+
+# ── Visual Studio ─────────────────────────────────────────────────────────────
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docobj
+*.userprefs
+.vscode/
+
+# ── Publish / packaging ───────────────────────────────────────────────────────
+publish/
+output/
+AppPackages/
+BundleArtifacts/
+*.msix
+*.msixbundle
+*.msixupload
+*.appx
+*.appxbundle
+*.appxupload
+_pkgLayout/
+
+# ── AOT / trimming artefacts ──────────────────────────────────────────────────
+*.ni.dll
+*.ni.exe
+*.ilk
+*.pdb
+# Keep .pdb for debug builds if you want — remove this line to track them
+# !*.pdb
+
+# ── CsWinRT / WinMD generated files ──────────────────────────────────────────
+Generated Files/
+_generated/
+*.g.cs
+*.g.i.cs
+
+# ── Rider ─────────────────────────────────────────────────────────────────────
+.idea/
+*.sln.iml
+
+# ── OS noise ──────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Test results ──────────────────────────────────────────────────────────────
+TestResults/
+coverage/
+*.trx
+*.coverage
+*.coveragexml
+
+# ── Secrets — never commit these ──────────────────────────────────────────────
+# The extension stores settings (HA URL + token) outside the repo in %LocalAppData%,
+# but guard against anyone accidentally dropping a secrets file here.
+secrets.json
+appsettings.*.json
+!appsettings.json
+# Code-signing certificate — upload to Azure DevOps Secure Files instead
+*.pfx
