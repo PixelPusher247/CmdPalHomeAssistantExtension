@@ -4,7 +4,30 @@ Control Home Assistant entities from [PowerToys Command Palette](https://learn.m
 
 ## Installation
 
-Download the `.exe` installer from [Releases](https://github.com/PixelPusher247/CmdPalHomeAssistantExtension/releases).
+### MSIX (Recommended)
+
+Download `HomeAssistantExtension-<version>.msixbundle` and `HomeAssistantExtension.cer` from [Releases](https://github.com/PixelPusher247/CmdPalHomeAssistantExtension/releases).
+
+**First time on a new PC (requires Administrator — do this once):**
+
+1. Double-click `HomeAssistantExtension.cer` to open the Certificate Import Wizard.
+2. Select **Local Machine** and click Next.
+3. Choose **Place all certificates in the following store** → Browse → **Trusted People**.
+4. Click Next, then Finish.
+5. Repeat steps 1–4, but place the certificate in the **Trusted Root Certification Authorities** store.
+
+**Install the extension:**
+
+Open PowerShell and run:
+
+```powershell
+Remove-AppxPackage -Name 'PixelPusher247.HomeAssistantExtension' -ErrorAction SilentlyContinue
+Add-AppxPackage .\HomeAssistantExtension-<version>.msixbundle
+```
+
+Then **restart PowerToys** — the Home Assistant extension will appear in Command Palette.
+
+> **Updating?** Skip the certificate steps. Just run the two PowerShell commands above with the new `.msixbundle`.
 
 ## Setup
 
